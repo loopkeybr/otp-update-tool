@@ -1,0 +1,7 @@
+#!/bin/bash
+
+msg=`cat $1`
+echo $msg
+endpoint="gateway/$2/targetDfu"
+mosquitto_pub --cert ../cert/*certificate.pem.crt --key ../cert/*private.pem.key --cafile ../cert/root-CA.crt -h a3apacvpactifn-ats.iot.sa-east-1.amazonaws.com -p 8883 -i $MQTT_SERVER_NAME -t $endpoint -f $1 --disable-clean-session
+
