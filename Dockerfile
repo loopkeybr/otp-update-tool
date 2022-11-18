@@ -17,7 +17,7 @@ RUN apt-get update -yq \
 
 
 # CMD [ "python3", "app.py" ]
-CMD [ "./exec.sh"]
+CMD [ "./exec.sh" ]
 
 # Define custom function directory
 # ARG FUNCTION_DIR="/function"

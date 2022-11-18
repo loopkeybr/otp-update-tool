@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 # create certificate files
