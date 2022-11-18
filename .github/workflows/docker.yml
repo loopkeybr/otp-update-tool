@@ -1,7 +1,7 @@
 name: Build and push to Github Packages
 
 on:
-  work_dispatcher:
+  workflow_dispatch:
   push:
     branches: [ 'main' ]
 jobs:
@@ -16,7 +16,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ghcr.io/loopkeybr/service-zwave-locks
+          images: ghcr.io/loopkeybr/gateway-update-tool
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
