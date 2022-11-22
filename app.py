@@ -40,15 +40,17 @@ def update_gateway_ESP(gw_serial, version, server_name):
     print("Server: " + server_name)
     for m in range(5):
         result = subprocess.run(['sh', 'scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
+        print(result.stdout.splitlines()[-1])
         if 'Checksum verified. Flashing and rebooting now' in result.stdout:
-            print("Atualizado!")
             return
+    print("Error Updating: Too many attempts")
     return
 
 def update_gateway_NRF(gw_serial, version):
     # print("Serial: " + gw_serial)
     # print("Version: " + version)
     result = subprocess.run(['scripts/dfu_specific_nrf.sh', '-g', gw_serial, '-f', '-v', version], stdout=subprocess.PIPE, text = True,)
+    print(result.stdout.splitlines()[-1])
     return
 
 path = os.path.dirname(os.path.abspath(__file__))
