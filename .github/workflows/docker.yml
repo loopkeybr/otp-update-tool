@@ -3,7 +3,7 @@ name: Build and push to Github Packages
 on:
   workflow_dispatch:
   push:
-    branches: [ 'staging2', 'main' ]
+    branches: [ 'staging', 'main' ]
 jobs:
   docker:
     runs-on: ubuntu-latest

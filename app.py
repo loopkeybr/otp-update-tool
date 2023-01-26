@@ -31,7 +31,7 @@ def is_gateway_online(id):
         return False
 
 def get_gateway_version(serial):
-    out = check_output(["scripts/version_get_gw", serial])
+    out = check_output(["dfu_gw_esp/scripts/version_get_gw", serial])
     return out.decode("utf-8").split("\n")
  
 def update_gateway_ESP(gw_serial, version, server_name):
@@ -39,7 +39,7 @@ def update_gateway_ESP(gw_serial, version, server_name):
     print("Version: " + version)
     print("Server: " + server_name)
     for m in range(5):
-        result = subprocess.run(['sh', 'scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
+        result = subprocess.run(['sh', 'dfu_gw_esp/scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
         print(result.stdout.splitlines()[-1])
         if 'Checksum verified. Flashing and rebooting now' in result.stdout:
             return
@@ -49,7 +49,7 @@ def update_gateway_ESP(gw_serial, version, server_name):
 def update_gateway_NRF(gw_serial, version):
     # print("Serial: " + gw_serial)
     # print("Version: " + version)
-    result = subprocess.run(['scripts/dfu_specific_nrf.sh', '-g', gw_serial, '-f', '-v', version], stdout=subprocess.PIPE, text = True,)
+    result = subprocess.run(['dfu_gw_esp/scripts/dfu_nrf.sh', '-t', gw_serial, '-g', '-f', '-v', version], stdout=subprocess.PIPE, text = True,)
     print(result.stdout.splitlines()[-1])
     return
 
