@@ -10,7 +10,7 @@ import multiprocessing
 import subprocess
 from subprocess import check_output
 
-server = 'Server_update_1'
+server = os.environ['MQTT_SERVER_NAME']
 def is_gateway_online(id):
     url = "https://api.loopkey.com.br/bckf/getGateways?gatewayIds=" + id
     payload={}
