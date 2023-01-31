@@ -69,7 +69,7 @@ def get_gateway_version(serial):
     for i in range(3):
         print(f'Try get version: {i}')
         version = get_gateway_version_once(serial)
-        if(version[0] != ''):
+        if(version[0] != '' and version[0] != '0.0.0'):
             return version
 
     return version
