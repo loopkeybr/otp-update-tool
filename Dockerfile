@@ -11,7 +11,7 @@ ENV GITHUB_PASS $GITHUB_PASS
 
 RUN apt-get update -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install git -yq
-RUN git clone https://${GITHUB_PASS}:@github.com/loopkeybr/dfu_gw_esp.git --branch v1.0.1
+RUN git clone https://${GITHUB_PASS}:@github.com/loopkeybr/dfu_gw_esp.git --branch v1.1.0
 
 FROM final
 

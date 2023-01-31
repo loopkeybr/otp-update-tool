@@ -11,6 +11,36 @@ import subprocess
 from subprocess import check_output
 
 server = os.environ['MQTT_SERVER_NAME']
+
+def versionCompare(v1, v2):
+     
+    # This will split both the versions by '.'
+    arr1 = v1.split(".")
+    arr2 = v2.split(".")
+    n = len(arr1)
+    m = len(arr2)
+     
+    # converts to integer from string
+    arr1 = [int(i) for i in arr1]
+    arr2 = [int(i) for i in arr2]
+  
+    # compares which list is bigger and fills
+    # smaller list with zero (for unequal delimeters)
+    if n>m:
+      for i in range(m, n):
+         arr2.append(0)
+    elif m>n:
+      for i in range(n, m):
+         arr1.append(0)
+     
+    # returns 1 if version 1 is bigger and -1 if
+    # version 2 is bigger and 0 if equal
+    for i in range(len(arr1)):
+      if arr1[i]>arr2[i]:
+         return 1
+      elif arr2[i]>arr1[i]:
+         return -1
+    return 0
 def is_gateway_online(id):
     url = "https://api.loopkey.com.br/bckf/getGateways?gatewayIds=" + id
     payload={}
@@ -30,21 +60,40 @@ def is_gateway_online(id):
     except:
         return False
 
-def get_gateway_version(serial):
+def get_gateway_version_once(serial):
     out = check_output(["dfu_gw_esp/scripts/version_get_gw", serial])
     return out.decode("utf-8").split("\n")
+
+def get_gateway_version(serial):
+    
+    for i in range(3):
+        print(f'Try get version: {i}')
+        version = get_gateway_version_once(serial)
+        if(version[0] != ''):
+            return version
+
+    return version
  
-def update_gateway_ESP(gw_serial, version, server_name):
+def update_gateway_ESP(gw_serial, version, server_name, current_version):
     print("Serial: " + gw_serial)
     print("Version: " + version)
     print("Server: " + server_name)
-    for m in range(5):
-        result = subprocess.run(['sh', 'dfu_gw_esp/scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
+
+    # print("Aqui", current_version[0])
+    ans = versionCompare(current_version[0], '2.5.1')
+    if ans >= 0:
+        print("Esp update new method")
+        result = subprocess.run(['dfu_gw_esp/scripts/dfu_nrf.sh', '-t', gw_serial, '-e', '-v', version], stdout=subprocess.PIPE, text = True,)
         print(result.stdout.splitlines()[-1])
-        if 'Checksum verified. Flashing and rebooting now' in result.stdout:
-            return
-    print("Error Updating: Too many attempts")
-    return
+    else:
+        print("Esp update old method")
+        for m in range(5):
+            result = subprocess.run(['sh', 'dfu_gw_esp/scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
+            print(result.stdout.splitlines()[-1])
+            if 'Checksum verified. Flashing and rebooting now' in result.stdout:
+                return
+        print("Error Updating: Too many attempts")
+        return
 
 def update_gateway_NRF(gw_serial, version):
     # print("Serial: " + gw_serial)
@@ -73,7 +122,15 @@ for i in range(len(records)):
             #Get version
             version = get_gateway_version(records[i]['fields']['Serial'])
             print(version)
+            try:
+                version_db = records[i]['fields']['ESP_version']
+                print(f"Version: {version_db}")
+            except KeyError:
+                version_db = ''
+                print("Db not setted")
+
             if(version[0] == ''):
+                print("Continua")
                 continue
             #Update gw list
             fields = {'ESP_version': version[0], 'NRF_version': version[1]}
@@ -83,7 +140,7 @@ for i in range(len(records)):
                 if(stable_version_tlsr[0] != version[0]):
                     #Update ESP firmware
                     print("ESP not updated!")
-                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_tlsr, server)
+                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_tlsr, server, version)
                     if 'Update retries ESP' in records[i]['fields']:
                         num_retries = int(records[i]['fields']['Update retries ESP']) + 1
                     else:
@@ -107,7 +164,7 @@ for i in range(len(records)):
                 if(stable_version_nrf[0] != version[0]):
                     #Update ESP firmware
                     print("ESP not updated!")
-                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_nrf, server)
+                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_nrf, server, version)
                     if 'Update retries ESP' in records[i]['fields']:
                         num_retries = int(records[i]['fields']['Update retries ESP']) + 1
                     else:
