@@ -80,7 +80,7 @@ def update_gateway_ESP(gw_serial, version, server_name, current_version):
     print("Server: " + server_name)
 
     # print("Aqui", current_version[0])
-    ans = versionCompare(current_version[0], '2.5.1')
+    ans = versionCompare(current_version[0], '2.6.6')
     if ans >= 0:
         print("Esp update new method")
         result = subprocess.run(['dfu_gw_esp/scripts/dfu_nrf.sh', '-t', gw_serial, '-e', '-v', version], stdout=subprocess.PIPE, text = True,)
@@ -116,6 +116,8 @@ records = airtable.get_all()
 for i in range(len(records)):
     # See if gateway is online
     if 'Update_select' in records[i]['fields']:
+        if not ('Id' in records[i]['fields']) :
+            continue
         if is_gateway_online(records[i]['fields']['Id']) == True:
             print("Online!")
             print(records[i]['fields']['Serial'])
