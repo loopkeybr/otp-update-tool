@@ -16,7 +16,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: ghcr.io/loopkeybr/gateway-update-tool
+          images: ghcr.io/loopkeybr/lock-update-tool
       -
         name: Set up QEMU
         uses: docker/setup-qemu-action@v1
