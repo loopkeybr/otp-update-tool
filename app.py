@@ -9,181 +9,324 @@ import time
 import multiprocessing
 import subprocess
 from subprocess import check_output
+from operator import itemgetter
+import logging
+import threading
+
+from src.backend import backend_commands
+from src.backend import iot_api
+from src.utils import util_version
 
 server = os.environ['MQTT_SERVER_NAME']
 
-def versionCompare(v1, v2):
-     
-    # This will split both the versions by '.'
-    arr1 = v1.split(".")
-    arr2 = v2.split(".")
-    n = len(arr1)
-    m = len(arr2)
-     
-    # converts to integer from string
-    arr1 = [int(i) for i in arr1]
-    arr2 = [int(i) for i in arr2]
-  
-    # compares which list is bigger and fills
-    # smaller list with zero (for unequal delimeters)
-    if n>m:
-      for i in range(m, n):
-         arr2.append(0)
-    elif m>n:
-      for i in range(n, m):
-         arr1.append(0)
-     
-    # returns 1 if version 1 is bigger and -1 if
-    # version 2 is bigger and 0 if equal
-    for i in range(len(arr1)):
-      if arr1[i]>arr2[i]:
-         return 1
-      elif arr2[i]>arr1[i]:
-         return -1
-    return 0
-def is_gateway_online(id):
-    url = "https://api.loopkey.com.br/bckf/getGateways?gatewayIds=" + id
-    payload={}
-    auth = os.environ['LK_BACKEND_AUTHORIZATION']
-    headers = {
-    'Authorization': auth,
-    'Content-Type': 'application/x-www-form-urlencoded'
-    }   
-    response = requests.request("GET", url, headers=headers, data=payload)
-    try:
-
-        json_answer = json.loads(response.text)
-        if 'gateways' in json_answer:
-            return json_answer['gateways'][0]['online']
-        else:
-            return False
-    except:
-        return False
-
-def get_gateway_version_once(serial):
-    out = check_output(["dfu_gw_esp/scripts/version_get_gw", serial])
-    return out.decode("utf-8").split("\n")
-
-def get_gateway_version(serial):
-    
-    for i in range(3):
-        print(f'Try get version: {i}')
-        version = get_gateway_version_once(serial)
-        if(version[0] != '' and version[0] != '0.0.0'):
-            return version
-
-    return version
- 
-def update_gateway_ESP(gw_serial, version, server_name, current_version):
-    print("Serial: " + gw_serial)
-    print("Version: " + version)
-    print("Server: " + server_name)
-
-    # print("Aqui", current_version[0])
-    ans = versionCompare(current_version[0], '2.6.6')
-    if ans >= 0:
-        print("Esp update new method")
-        result = subprocess.run(['dfu_gw_esp/scripts/dfu_nrf.sh', '-t', gw_serial, '-e', '-v', version], stdout=subprocess.PIPE, text = True,)
-        print(result.stdout.splitlines()[-1])
-    else:
-        print("Esp update old method")
-        for m in range(5):
-            result = subprocess.run(['sh', 'dfu_gw_esp/scripts/send_ota.sh', gw_serial, version, server_name], stdout=subprocess.PIPE, text = True,)
-            print(result.stdout.splitlines()[-1])
-            if 'Checksum verified. Flashing and rebooting now' in result.stdout:
-                return
-        print("Error Updating: Too many attempts")
-        return
-
-def update_gateway_NRF(gw_serial, version):
-    # print("Serial: " + gw_serial)
-    # print("Version: " + version)
-    result = subprocess.run(['dfu_gw_esp/scripts/dfu_nrf.sh', '-t', gw_serial, '-g', '-f', '-v', version], stdout=subprocess.PIPE, text = True,)
-    print(result.stdout.splitlines()[-1])
-    return
-
 path = os.path.dirname(os.path.abspath(__file__))
 
-stable_version_complete_nrf = os.environ['STABLE_VERSION_NRF']
-stable_version_complete_tlsr = os.environ['STABLE_VERSION_TLSR']
-stable_version_nrf = [stable_version_complete_nrf.split(".stable",1)[0], stable_version_complete_nrf.split("stable_",2)[1]]
-stable_version_tlsr = [stable_version_complete_tlsr.split(".stable",1)[0], stable_version_complete_tlsr.split("stable_",2)[1]]
-print('Versão nrf: ' + ' '.join(stable_version_nrf))
-print('Versão tlsr: ' + ' '.join(stable_version_tlsr))
+versions_database = Airtable(os.environ['AIRTABLE_BASE_ID2'], 'Model Versions', os.environ['AIRTABLE_API_KEY'])
+versions_records = versions_database.get_all()
 
-airtable = Airtable(os.environ['AIRTABLE_BASE_ID2'], 'Table 1', os.environ['AIRTABLE_API_KEY'])
+
+airtable = Airtable(os.environ['AIRTABLE_BASE_ID2'], 'Locks Main', os.environ['AIRTABLE_API_KEY'])
 records = airtable.get_all()
-for i in range(len(records)):
-    # See if gateway is online
-    if 'Update_select' in records[i]['fields']:
-        if not ('Id' in records[i]['fields']) :
-            continue
-        if is_gateway_online(records[i]['fields']['Id']) == True:
-            print("Online!")
-            print(records[i]['fields']['Serial'])
-            #Get version
-            version = get_gateway_version(records[i]['fields']['Serial'])
-            print(version)
-            try:
-                version_db = records[i]['fields']['ESP_version']
-                print(f"Version: {version_db}")
-            except KeyError:
-                version_db = ''
-                print("Db not setted")
 
-            if(version[0] == ''):
-                print("Continua")
+lock_versions_database = Airtable(os.environ['AIRTABLE_BASE_ID1'], 'Table 1', os.environ['AIRTABLE_API_KEY'])
+lock_versions_records = lock_versions_database.get_all()
+
+def set_state_complete():
+    fields = {'LastGatewaySaw':'', 'GatewayType':'', 'Status':'Complete', 'Update_select':None}
+    set_record_fields(i, fields)
+
+def set_state_not_started():
+    fields = {'LastGatewaySaw':'', 'GatewayType':'', 'Status':'Not Started'}
+    set_record_fields(i, fields)
+
+
+def set_record_fields(index, fields):
+    airtable.update(records[index]['id'], fields)
+    for i in fields:
+        records[index]['fields'][i] = fields[i]
+
+def set_record_field(index, field, value):
+    set_record_fields(index, {field:value})
+
+def get_try_count(index):
+    tries = 0
+    if 'Update retries Main' in records[i]['fields']:
+        tries = records[i]['fields']['Update retries Main']
+    return tries
+
+def increase_try_count(index):
+    tries = get_try_count(index) + 1
+    set_record_field(index, 'Update retries Main', tries)
+
+def verify_all_complete():
+    for i in range(len(records)):
+        if 'Update_select' in records[i]['fields']:
+            return False
+    return True
+
+
+
+def event_callback(dfu_msg):
+    print(dfu_msg.serial)
+    print(dfu_msg.error)
+    print(dfu_msg.progress)
+
+    if(dfu_msg.error == 0 or dfu_msg.error == 50):
+        print("Ready to update")
+    else:
+        return
+    
+    dfu_msg.error
+    
+    #Search for record that have the gateway to send dfu_jump command
+    for i in range(len(records)):
+        if 'Update_select' in records[i]['fields']:
+
+            # print(records[i]['fields'])
+
+            #Find the batch version to update
+            batch = util_version.find_batch_version_update(versions_records, records[i]['fields']['Serial'])
+            if(batch == False):
+                print("Batch version not found!")
                 continue
-            #Update gw list
-            fields = {'ESP_version': version[0], 'NRF_version': version[1]}
-            airtable.update(records[i]['id'], fields)
-            #Compare with last stable version
-            if 'LLKGAAE' in records[i]['fields']['Serial']:
-                if(stable_version_tlsr[0] != version[0]):
-                    #Update ESP firmware
-                    print("ESP not updated!")
-                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_tlsr, server, version)
-                    if 'Update retries ESP' in records[i]['fields']:
-                        num_retries = int(records[i]['fields']['Update retries ESP']) + 1
-                    else:
-                        num_retries = 1
-                    fields = {'Update retries ESP': num_retries}
-                    airtable.update(records[i]['id'], fields)
-                elif (stable_version_tlsr[1] != version[1]):
-                    #Update TLSR/NRF firmware
-                    print("TLSR not updated!")
-                    update_gateway_NRF(records[i]['fields']['Serial'], stable_version_complete_tlsr)
-                    if 'Update retries BLE' in records[i]['fields']:
-                        num_retries = int(records[i]['fields']['Update retries BLE']) + 1
-                    else:
-                        num_retries = 1
-                    fields = {'Update retries ESP': 0, 'Update retries BLE': num_retries}
-                    airtable.update(records[i]['id'], fields)
-                else:
-                    fields = {'Update retries ESP': 0, 'Update retries BLE': 0}
-                    airtable.update(records[i]['id'], fields)
-            elif 'LLKGAAD' in records[i]['fields']['Serial']:
-                if(stable_version_nrf[0] != version[0]):
-                    #Update ESP firmware
-                    print("ESP not updated!")
-                    update_gateway_ESP(records[i]['fields']['Serial'], stable_version_complete_nrf, server, version)
-                    if 'Update retries ESP' in records[i]['fields']:
-                        num_retries = int(records[i]['fields']['Update retries ESP']) + 1
-                    else:
-                        num_retries = 1
-                    fields = {'Update retries ESP': num_retries}
-                    airtable.update(records[i]['id'], fields)
-                elif (stable_version_nrf[1] != version[1]):
-                    #Update TLSR/NRF firmware
-                    print("NRF not updated!")
-                    update_gateway_NRF(records[i]['fields']['Serial'], stable_version_complete_nrf)
-                    if 'Update retries BLE' in records[i]['fields']:
-                        num_retries = int(records[i]['fields']['Update retries BLE']) + 1
-                    else:
-                        num_retries = 1
-                    fields = {'Update retries ESP': 0, 'Update retries BLE': num_retries}
-                    airtable.update(records[i]['id'], fields)
-                else:
-                    fields = {'Update retries ESP': 0, 'Update retries BLE': 0}
-                    airtable.update(records[i]['id'], fields)
 
+            #Verify if lock have a gateway point
+            if 'LastGatewaySaw' not in records[i]['fields']:
+                # print("LastGateway not setted!")
+                continue
+            if records[i]['fields']['LastGatewaySaw'] != dfu_msg.serial:
+                # print("LastGateway different of event serial!")
+                continue
+
+            #Verify database version
+            if 'Main_version' in records[i]['fields']:
+                if not util_version.version_clean_compare_v1_fewer_v2(records[i]['fields']['Main_version'], batch['Version Main']):
+                    # print("Database version not fewer!")
+                    continue
+
+            
+            # if 'Progress' in records[i]['fields']:
+            #     if records[i]['fields']['Progress'] != dfu_msg.progress:
+            #         print("Saiu6")
+            #         continue
+
+
+            #Save progress
+            fields = {'Progress':str(dfu_msg.progress)}
+            set_record_fields(i, fields)
+
+            # if(dfu_msg.progress == 100):
+            #     print("Complete")
+            #     set_state_complete() 
+            #     return
+
+            #Verify if Status is preparing
+            if records[i]['fields']['Status'] != 'Preparing':
+                # print("Status not Preparing")
+                continue
+            
+
+            # version = backend_commands.get_lock_version(records[i]['fields']['Serial'])
+
+            # print(version['version'])
+            # print(batch['Version Main'])
+
+            # if not version:
+            #     continue
+
+            #Verify if current version is below than update version
+            # if not util_version.version_clean_compare_v1_fewer_v2(version['version'], batch['Version Main']):
+            #     fields = {'Main_version': version['version'], 'Aux_version': version['internalVersion'], 'LastGatewaySaw':''}
+            #     airtable.update(records[i]['id'], fields)
+            #     return
+            
+            #Change Status to Updating
+            print('Updating')
+            fields = {'Status':'Updating'}
+            set_record_fields(i, fields)
+            # backend_commands.send_to_dfu_mode(records[i]['fields']['Id'])
+
+
+def verify_gateway_in_use(lock_serial, lock_gateway):
+    for i in range(len(records)):
+        if 'Update_select' in records[i]['fields']:
+            if 'LastGatewaySaw' not in records[i]['fields']:
+                continue
+            if records[i]['fields']['LastGatewaySaw'] == lock_gateway:
+                if records[i]['fields']['Serial'] == lock_serial:
+                    continue
+                return True
+    return False
+
+def get_version_app_url(serial, version):
+    for i in range(len(lock_versions_records)):
+        if 'Enable' not in lock_versions_records[i]['fields']:
+            continue
+
+        if version not in lock_versions_records[i]['fields']['Versao']:
+            # print(lock_versions_records[i])
+            continue
+
+        if lock_versions_records[i]['fields']['Lote'] not in serial:
+            continue
+
+        if not ('App' in lock_versions_records[i]['fields']) :
+            return False
+        
+        if not lock_versions_records[i]['fields']['App'][0]:
+            return False
+
+        return lock_versions_records[i]['fields']['App'][0]['url']
+    return False
+
+event_listening = iot_api.EventsListening(event_callback)
+
+# Variável de controle para parar a thread
+thread_running = True
+
+def thread_loop():
+    print("Thread Start")
+    
+    while thread_running:
+        event_listening.loop()
+
+    print("Thread Finish")
+
+x = threading.Thread(target=thread_loop)
+x.start()
+
+while True:
+    
+    versions_records = versions_database.get_all()
+    records = airtable.get_all()
+    lock_versions_records = lock_versions_database.get_all()
+
+    # event_listening.connect()
+    for i in range(len(records)):
+        # See if gateway is online
+        if 'Update_select' in records[i]['fields']:
+            if not ('Id' in records[i]['fields']) :
+                # print("Not selected to update!")
+                set_state_not_started()
+                continue
+
+            #Find the batch version to update
+            batch = util_version.find_batch_version_update(versions_records, records[i]['fields']['Serial'])
+            if(batch == False):
+                print("Batch version not found!")
+                set_state_not_started()
+                continue
+
+            # print(batch)
+
+            # print(records[i]['fields']['Serial'])
+
+            #Verify database version
+            if 'Main_version' in records[i]['fields']:
+                print(records[i]['fields']['Main_version'])
+                print(batch['Version Main'])
+
+
+                if(util_version.version_clean_compare_v1_fewer_v2(records[i]['fields']['Main_version'], batch['Version Main']) == 0 ):
+                    print("Version is equal update version!")
+                    set_state_complete()
+                    continue
+                elif(util_version.version_clean_compare_v1_fewer_v2(records[i]['fields']['Main_version'], batch['Version Main']) != -1):
+                    print("Version update not valid!")
+                    continue
+            else:
+                set_state_not_started()
+
+            version = backend_commands.get_lock_version(records[i]['fields']['Serial'])
+            if version:
+                print("Version Found")
+                fields = {'Main_version': version['version'], 'Aux_version': version['internalVersion']}
+                set_record_fields(i, fields)
+                if(util_version.version_clean_compare_v1_fewer_v2(records[i]['fields']['Main_version'], batch['Version Main']) == 0):
+                    set_state_complete()
+                    continue
+
+            #Get better gateway that is seeing
+            gw=backend_commands.get_better_gateway_by_device(records[i]['fields']['Serial'])
+            if(gw == False):
+                print('Gateway not Found!')
+                continue
+            # if (gw['transport'] != "awsIot"):
+            #     print("Gateway option not supported!")
+            #     continue
+
+            # print(gw)
+
+            if records[i]['fields']['Status'] == 'Updating':
+                
+                if(get_try_count(i)%10 == 0):
+                    set_state_not_started()
+                    continue
+                increase_try_count(i)
+                print("Aqui1")
+                if (gw['name'] != 'DfuTarg'):
+                    print("Lock isn't on dfu mode!")
+                    backend_commands.send_to_dfu_mode(records[i]['fields']['Id'])
+                
+                print(gw['name'])
+                iot_api.update_loopkey_lock(records[i]['fields']['LastGatewaySaw'], records[i]['fields']['Serial'], batch['Version Main'])
+                continue
+
+            # print(version)
+
+            print(records[i]['fields']['Serial'])
+            # print(gw['gatewaySerial'])
+            if verify_gateway_in_use(records[i]['fields']['Serial'], gw['gatewaySerial']):
+                print("Gateway already in use!")
+                continue
+
+            #Mark gateway as in use
+            fields = {'LastGatewaySaw':gw['gatewaySerial'], 'GatewayType':gw['transport']}
+            set_record_fields(i, fields)
+
+            if (gw['transport'] == "websocket"):
+                increase_try_count(i)
+                print("Updating websocket!")
+                url = get_version_app_url(records[i]['fields']['Serial'], batch['Version Main'])
+                if url == False:
+                    print("Not valid url320 Millicores found!")
+                    set_state_not_started()
+                    continue
+
+                print('Updating')
+                fields = {'Status':'Updating'}
+                set_record_fields(i, fields)
+                response = backend_commands.send_lock_update_firmware_by_websocket(records[i]['fields']['Serial'], url)
+                set_state_not_started()
+                continue
+
+            if (gw['transport'] != "awsIot"):
+                print("Gateway option not supported!")
+                continue
+
+            print("Send command dfu to gateway")
+            iot_api.update_loopkey_lock(gw['gatewaySerial'], records[i]['fields']['Serial'], batch['Version Main'])
+
+            print("Preparing")
+            fields = {'Status':'Preparing'}
+            set_record_fields(i, fields)
+
+            if 'Update retries Main' in records[i]['fields']:
+                num_retries = int(records[i]['fields']['Update retries Main']) + 1
+            else:
+                num_retries = 1
+            fields = {'Update retries Main': num_retries}
+            set_record_fields(i, fields)
+
+    if verify_all_complete() == True:
+        break
+        
+
+    print("Sleeping")
+    time.sleep(120)
+    print("Wake")
+    
+print("Finish")
+thread_running=False
+# x.join()
+exit()

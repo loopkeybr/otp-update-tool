@@ -1,2 +1,4 @@
 dfu_gw_esp
 .env*
+__pycache__
+cert/
