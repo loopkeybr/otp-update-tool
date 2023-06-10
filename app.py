@@ -126,10 +126,14 @@ for i_bases in range(len(bases)):
         print(otp)
 
         if otp != False:
-            passcode=otp['passcode']
-            init=otp['startDateTime']
-            end=otp['endDateTime']
-            timezone=otp['timezone']
+            if 'passcode' in otp:
+                passcode=otp['passcode']
+            if 'startDateTime' in otp:
+                init=otp['startDateTime']
+            if 'endDateTime' in otp:
+                end=otp['endDateTime']
+            if 'timezone' in otp:
+                timezone=otp['timezone']
 
         fields = {'Id':str(locks_corp[i_records]['id']),
                   'Serial':locks_corp[i_records]['serialCode'],
