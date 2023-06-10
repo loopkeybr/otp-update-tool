@@ -116,13 +116,18 @@ for i_bases in range(len(bases)):
 
         current_time=util_time.time_current()
         end_time=util_time.time_increment(current_time,int(times[i_bases]))
-        otp=back_office_api.get_otp_password(locks_corp[i_records]['id'], current_time, end_time, 'Automatic Generation: ' + current_time)
-
+        
+        try:
+            otp=back_office_api.get_otp_password(locks_corp[i_records]['id'], current_time, end_time, 'Automatic Generation: ' + current_time)
+        except:
+            print("An exception has occurred!")
+        
         passcode=''
         init=''
         end=''
         time_zone=''
 
+        print(locks_corp[i_records]['id'])
         print(otp)
 
         if otp != False:
@@ -144,10 +149,10 @@ for i_bases in range(len(bases)):
                   'Início':init,
                   'Fim':end,
                   'TimeZone':timezone}
-        print(fields)
+        # print(fields)
         
         door_on_database = verify_door_exists_on_base(locks_corp[i_records]['id'], door_records)
-        print(door_on_database)
+        # print(door_on_database)
         if(door_on_database != False):
             door_database.update(door_on_database, fields)
         else:
