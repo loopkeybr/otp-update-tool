@@ -1,6 +1,3 @@
 airtable-python-wrapper
-cloudinary
 progress
-paho-mqtt
 wget
-awslambdaric

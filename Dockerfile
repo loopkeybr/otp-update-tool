@@ -18,8 +18,6 @@ FROM final
 RUN apt-get update -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install pip -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install python3 -yq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install mosquitto -yq \
-    && DEBIAN_FRONTEND=noninteractive apt-get install mosquitto-clients -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install unzip -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install xxd -yq \
     && DEBIAN_FRONTEND=noninteractive apt-get install jq -yq \

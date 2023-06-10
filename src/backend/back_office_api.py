@@ -98,3 +98,37 @@ def is_gateway_online(id):
             return False
     except:
         return False
+
+
+def get_all_locks_from_corp(id):
+    url = "https://api-hml.loopkey.com.br/bckf/corp/doors/status?corpId=" + id
+    payload={}
+    auth = os.environ['LK_BACKEND_AUTHORIZATION']
+    headers = {
+    'Authorization': auth,
+    'Content-Type': 'application/x-www-form-urlencoded'
+    }   
+    response = requests.request("GET", url, headers=headers, data=payload)
+    try:
+        json_answer = json.loads(response.text)
+        # print(json_answer)
+        return json_answer['doorStatus']
+    except:
+        return False
+    
+def get_otp_password(doorId, startDateTime, endDateTime, description):
+    url = "https://api-hml.loopkey.com.br/bckf/door/otp?doorId=" + str(doorId) + "&startDateTime=" + startDateTime + \
+          "&endDateTime=" + endDateTime + "&description=" + description
+    payload={}
+    auth = os.environ['LK_BACKEND_AUTHORIZATION']
+    headers = {
+    'Authorization': auth,
+    'Content-Type': 'application/x-www-form-urlencoded'
+    }   
+    response = requests.request("GET", url, headers=headers, data=payload)
+    try:
+
+        json_answer = json.loads(response.text)
+        return json_answer
+    except:
+        return False
