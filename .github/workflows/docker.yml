@@ -39,8 +39,8 @@ jobs:
         with:
           context: .
           build-args: |
-            GITHUB_ACTOR=${{ secrets.ACTOR_GUSTAVO }}
-            GITHUB_PASS=${{ secrets.PAT_GUSTAVO }}
+            GITHUB_ACTOR=${{ secrets.ACTOR_FILIPE }}
+            GITHUB_PASS=${{ secrets.PAT_FILIPE }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
