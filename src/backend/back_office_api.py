@@ -4,7 +4,8 @@ import logging
 import json
 
 def send_raw_command(id, command, cmdSource):
-    url = "https://api.loopkey.com.br/bckf/sendRawDoorCommand"
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/sendRawDoorCommand"
 
     payload='doorId=' + id + '&command=' + command + '&commandSource=' + cmdSource
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
@@ -23,7 +24,8 @@ def send_to_dfu_mode(id):
 
 
 def send_lock_update_firmware_by_websocket(serial, firmwareUrl):
-    url = "https://api.loopkey.com.br/bckf/updateDeviceFirmware"
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/updateDeviceFirmware"
 
     payload='serial=' + serial + '&firmwareUrl=' + firmwareUrl
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
@@ -42,7 +44,8 @@ def send_lock_update_firmware_by_websocket(serial, firmwareUrl):
 def get_lock_version(serial):
     import requests
 
-    url = "https://api.loopkey.com.br/bckf/getDeviceFirmwareVersion?serial=" + serial
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/getDeviceFirmwareVersion?serial=" + serial
 
     payload={}
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
@@ -63,7 +66,8 @@ def get_lock_version(serial):
     return json_ans
 
 def get_gateways_by_device(serial):
-    url = "https://api.loopkey.com.br/bckf/getGatewaysByDevice?serialCode=" + serial
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/getGatewaysByDevice?serialCode=" + serial
     payload={}
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
     print(auth)
@@ -81,7 +85,8 @@ def get_gateways_by_device(serial):
         return False
 
 def is_gateway_online(id):
-    url = "https://api.loopkey.com.br/bckf/getGateways?gatewayIds=" + id
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/getGateways?gatewayIds=" + id
     payload={}
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
     headers = {
@@ -101,7 +106,8 @@ def is_gateway_online(id):
 
 
 def get_all_locks_from_corp(id):
-    url = "https://api-hml.loopkey.com.br/bckf/corp/doors/status?corpId=" + id
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/corp/doors/status?corpId=" + id
     payload={}
     auth = os.environ['LK_BACKEND_AUTHORIZATION']
     headers = {
@@ -117,7 +123,8 @@ def get_all_locks_from_corp(id):
         return False
     
 def get_otp_password(doorId, startDateTime, endDateTime, description):
-    url = "https://api-hml.loopkey.com.br/bckf/door/otp?doorId=" + str(doorId) + "&startDateTime=" + startDateTime + \
+    lk_server_host = os.environ['LK_BACKEND_HOST']
+    url = lk_server_host + "/bckf/door/otp?doorId=" + str(doorId) + "&startDateTime=" + startDateTime + \
           "&endDateTime=" + endDateTime + "&description=" + description
     payload={}
     auth = os.environ['LK_BACKEND_AUTHORIZATION']

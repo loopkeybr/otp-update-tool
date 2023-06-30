@@ -104,7 +104,9 @@ for i_bases in range(len(bases)):
 
         # Filtrar portas que não são loopkey
         # print(locks_corp[i]['serialCode'])
-        if locks_corp[i_records]['serialCode'][:3] != "LLK":
+        if locks_corp[i_records]['serialCode'][:3] != "LLK" and \
+            locks_corp[i_records]['serialCode'][:3] != "TTL" and \
+            locks_corp[i_records]['serialCode'][:2] != "TL":
             continue
 
         # print(locks_corp[i]['id'])
@@ -138,7 +140,7 @@ for i_bases in range(len(bases)):
             if 'endDateTime' in otp:
                 end=otp['endDateTime']
             if 'timezone' in otp:
-                timezone=otp['timezone']
+                time_zone=otp['timezone']
 
         fields = {'Id':str(locks_corp[i_records]['id']),
                   'Serial':locks_corp[i_records]['serialCode'],
@@ -148,7 +150,7 @@ for i_bases in range(len(bases)):
                   'Senha':passcode,
                   'Início':init,
                   'Fim':end,
-                  'TimeZone':timezone}
+                  'TimeZone':time_zone}
         # print(fields)
         
         door_on_database = verify_door_exists_on_base(locks_corp[i_records]['id'], door_records)
